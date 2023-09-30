@@ -1,0 +1,73 @@
+---
+- name: Perform System Checks
+  hosts: ubuntu_hosts   # Change ubuntu_hosts by your Hosts/_group
+  tasks:
+    - name: Get the current date
+      set_fact:
+        current_date: "{{ ansible_date_time.date }}"
+
+    - name: Check server uptime
+      shell: uptime
+      register: server_uptime
+
+    - name: Check system logs
+      shell: tail /var/log/syslog
+      register: system_logs
+
+    - name: Check resource usage
+      shell: top -n 1 -b
+      register: resource_usage
+
+    - name: Check security logs
+      shell: tail /var/log/auth.log
+      register: security_logs
+
+    - name: Get running services
+      command: "systemctl list-units --type=service --state=running --no-legend --plain --full --all --no-pager"
+      register: running_services_raw
+      changed_when: false
+      ignore_errors: true
+
+    - name: Extract running services
+      set_fact:
+        running_services: "{{ running_services_raw.stdout_lines | map('regex_replace', '^(\\S+).*', '\\1') | list }}"
+
+    - name: Check disk space
+      shell: df -h
+      register: disk_space
+
+    - name: Generate output file
+      command: |
+        echo "Server: {{ ansible_host }}
+        Date: {{ current_date }}
+        Uptime: {{ server_uptime.stdout }}
+        System Logs: {{ system_logs.stdout }}
+        Resource Usage: {{ resource_usage.stdout }}
+        Security Logs: {{ security_logs.stdout }}
+        Running Services: {{ running_services | join(', ') }}
+        Disk Space: {{ disk_space.stdout }}" > "/tmp/{{ ansible_host }}_daily_check_repo-{{ current_date }}"
+
+
+
+
+
+    - name: Copy output file to remote host
+      copy:
+        dest: "/tmp/{{ ansible_host }}_daily_check_repo-{{ current_date }}"
+        content: |
+          Server: {{ ansible_host }}
+          Date: {{ current_date }}
+          Uptime: {{ server_uptime.stdout }}
+          System Logs: {{ system_logs.stdout }}
+          Resource Usage: {{ resource_usage.stdout }}
+          Security Logs: {{ security_logs.stdout }}
+          Running Services: {{ running_services | join(', ') }}
+          Disk Space: {{ disk_space.stdout }}
+      delegate_to: localhost
+
+    - name: Fetch the output file from remote host
+      fetch:
+        src: "/tmp/{{ ansible_host }}_daily_check_repo-{{ current_date }}"
+        dest: "/mnt/"  # Path to destination output directory, You can create a user private directory in /var/Your_Directory
+        flat: yes
+      delegate_to: localhost
