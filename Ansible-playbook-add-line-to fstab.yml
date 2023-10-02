@@ -1,0 +1,26 @@
+---
+- name: Update /etc/fstab and run 'mount -a'
+  hosts: all  # Replace 'all' with the target hosts or group name
+  become: yes  # To execute tasks as a privileged user (e.g., root)
+
+  tasks:
+    - name: Add NFS entry to /etc/fstab
+      lineinfile:
+        path: /etc/fstab
+        line: "Your_server_or_ip:/mount_path /mnt/mount_destination nfs rw 0 0"
+        state: present
+      tags:
+        - update_fstab
+
+    - name: Run 'mount -a'
+      command: mount -a
+      become: yes  # You may need elevated privileges to run mount
+      async: 600
+      poll: 0
+      ignore_errors: yes  # Ignore errors if there's nothing to mount
+      tags:
+        - mount_a
+
+
+
+...
